@@ -49,6 +49,7 @@ const brushSizes = [2, 5, 10, 15, 20]
 
 export default function PaintApp() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const hiddenInputRef = useRef<HTMLInputElement>(null)
   const [isDrawing, setIsDrawing] = useState(false)
   const [currentColor, setCurrentColor] = useState("#000000")
   const [currentSize, setCurrentSize] = useState(5)
@@ -88,23 +89,23 @@ export default function PaintApp() {
   }, [isTyping])
 
   useEffect(() => {
-    if (!isTyping) return
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      const canvas = canvasRef.current
+      const hiddenInput = hiddenInputRef.current
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      e.preventDefault()
-
-      if (e.key === "Enter") {
-        finishTyping()
-      } else if (e.key === "Backspace") {
-        setCurrentText((prev) => prev.slice(0, -1))
-      } else if (e.key.length === 1) {
-        setCurrentText((prev) => prev + e.key)
+      if (canvas && hiddenInput && !canvas.contains(e.target as Node) && !hiddenInput.contains(e.target as Node)) {
+        // Agora o texto só é cancelado pelos botões específicos
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [isTyping, currentText])
+    document.addEventListener("mousedown", handleClickOutside)
+    document.addEventListener("touchstart", handleClickOutside)
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+      document.removeEventListener("touchstart", handleClickOutside)
+    }
+  }, [])
 
   useEffect(() => {
     if (isTyping) {
@@ -389,7 +390,7 @@ export default function PaintApp() {
     e.preventDefault()
 
     if (isTyping) {
-      finishTyping()
+      // Agora só posiciona o cursor quando clica no canvas no modo texto
       return
     }
 
@@ -399,6 +400,12 @@ export default function PaintApp() {
       setIsTyping(true)
       setCurrentText("")
       setCursorVisible(true)
+      setIsMenuOpen(false)
+      setTimeout(() => {
+        if (hiddenInputRef.current) {
+          hiddenInputRef.current.focus()
+        }
+      }, 100)
       return
     }
 
@@ -436,12 +443,29 @@ export default function PaintApp() {
     setIsTyping(false)
     setCurrentText("")
     setIsTextMode(false)
+    if (hiddenInputRef.current) {
+      hiddenInputRef.current.blur()
+    }
   }
 
   const cancelTyping = () => {
     setIsTyping(false)
     setCurrentText("")
     setIsTextMode(false)
+    if (hiddenInputRef.current) {
+      hiddenInputRef.current.blur()
+    }
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCurrentText(e.target.value)
+  }
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault()
+      finishTyping()
+    }
   }
 
   const draw = (e: React.TouchEvent | React.MouseEvent) => {
@@ -646,15 +670,38 @@ export default function PaintApp() {
 
   return (
     <div className="min-h-screen bg-white relative overflow-hidden">
+      <input
+        ref={hiddenInputRef}
+        type="text"
+        value={currentText}
+        onChange={handleInputChange}
+        onKeyDown={handleInputKeyDown}
+        className="fixed -top-96 left-0 opacity-0 pointer-events-none"
+        style={{ position: "absolute", left: "-9999px" }}
+        inputMode="text"
+        autoComplete="off"
+      />
+
       {isTyping && (
-        <div className="fixed top-4 left-4 z-30 bg-black bg-opacity-75 text-white px-4 py-2 rounded-lg text-sm">
-          Digite o texto • Enter para confirmar • Toque fora para cancelar
+        <div className="fixed top-4 left-4 z-30 flex gap-2">
+          <div
+            className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm cursor-pointer shadow-lg"
+            onClick={cancelTyping}
+          >
+            Cancelar
+          </div>
+          <div
+            className="bg-green-500 text-white px-4 py-2 rounded-lg text-sm cursor-pointer shadow-lg"
+            onClick={finishTyping}
+          >
+            Enviar
+          </div>
         </div>
       )}
 
       {selectedShape && (
         <div
-          className="fixed top-4 left-4 z-30 bg-blue-500 text-white px-4 py-2 rounded-lg text-sm cursor-pointer"
+          className="fixed top-4 left-4 z-30 bg-blue-500 text-white px-4 py-2 rounded-lg text-sm cursor-pointer shadow-lg"
           onClick={() => setSelectedShape(null)}
         >
           Toque aqui para cancelar
